@@ -1,0 +1,12 @@
+# Dependency names from the selected source imports. This is not a historical lockfile.
+numpy
+scipy
+scikit-learn
+joblib
+requests
+tqdm
+rank-bm25
+jieba
+networkx
+pandas
+pyarrow

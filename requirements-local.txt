@@ -1,0 +1,7 @@
+# Only needed for local encoders/rerankers, optional FAISS indices and legacy DOCX loading.
+-r requirements.txt
+torch
+transformers
+sentence-transformers
+faiss-cpu
+python-docx
