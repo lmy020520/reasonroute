@@ -8,6 +8,8 @@ import threading
 
 from reasonroute.datasets import digest_file, digest_json, load_artifact, read_rows, verify_model_data
 from reasonroute.cache import title_setting
+from reasonroute.llm_response import combined_token_cost
+IMPLEMENTATION_REVISION = 'paper-method-v5'
 
 
 ENV_LOCK = threading.RLock()
@@ -60,7 +62,10 @@ class MethodRuntime:
                 return first, 'reasoning_low'
             second = self.interleaved.run(question, enable_answer_verifier=(mode == 'quality'))
             for name in ('token_cost', 'retrieval_steps'):
-                second['metrics'][name] = second['metrics'].get(name, 0) + first.get('metrics', {}).get(name, 0)
+                costs = (second['metrics'].get(name, 0), first.get('metrics', {}).get(name, 0))
+                second['metrics'][name] = combined_token_cost(*costs) if name == 'token_cost' else sum(costs)
+            if second['metrics'].get('known_token_cost') is not None:
+                second['metrics']['known_token_cost'] += first.get('metrics', {}).get('token_cost', 0)
             return second, 'reasoning_fallback'
 
     def run(self, question, mode):
@@ -112,7 +117,7 @@ def load_runtime(args, need_models=True):
                'doc_title_context': title_setting(os.getenv('DOC_TITLE_CONTEXT', '0')),
                'generation_model': LLM_MODEL_NAME, 'embedding_model': 'BAAI/bge-m3',
                'reranker_model': RERANK_MODEL_NAME}
-    context['implementation_revision'] = 'independent-v4'
+    context['implementation_revision'] = IMPLEMENTATION_REVISION
     context['corpus_manifest_sha256'] = digest_file(args.corpus_manifest)
     cache_meta = args.embeddings.with_suffix('.metadata.json')
     if not cache_meta.is_file():
@@ -124,6 +129,9 @@ def load_runtime(args, need_models=True):
         raise ValueError('Classifier must be trained under the independent 1000-query protocol')
     if classifier is not None:
         verify_model_data(classifier, read_rows(args.qa), digest_file(args.qa), 'query_classifier')
+        from reasonroute.classification import FEATURE_SCHEMA
+        if classifier.get('feature_schema') != FEATURE_SCHEMA:
+            raise ValueError('Retrain the classifier with the independent word/char/structure feature blocks')
     if gate is not None:
         if gate.get('train_n') != 800:
             raise ValueError('Gate must use the independent 800-query protocol')

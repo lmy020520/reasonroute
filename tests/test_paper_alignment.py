@@ -124,7 +124,8 @@ class PaperAlignmentTests(unittest.TestCase):
                 output = retrieval.InterleavedRetrieval(Hybrid(), 3).run('question', True)
         self.assertEqual(output['final_answer'], 'candidate')
         self.assertEqual(output['metrics']['ircot_verifier_error'], 'RuntimeError')
-        self.assertEqual(output['metrics']['token_cost'], 50)
+        self.assertIsNone(output['metrics']['token_cost'])
+        self.assertEqual(output['metrics']['known_token_cost'], 50)
 
     def test_empty_verifier_keeps_candidate_and_counts_tokens(self):
         actions = [('SEARCH("next")', 10)] * 3 + [('', 7)]

@@ -6,6 +6,40 @@ import re
 from typing import Iterable, List
 
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.feature_extraction import DictVectorizer
+from collections import Counter
+
+
+class QueryTextSelector(BaseEstimator, TransformerMixin):
+    """Raw query text for the two TF-IDF blocks, without structural pseudo tokens."""
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        return [str(item.get('question') or '') if isinstance(item, dict) else str(item or '') for item in X]
+
+
+class QueryStructureFeatures(BaseEstimator, TransformerMixin):
+    """Independent sparse structural block; vocabulary is fitted on training rows only."""
+
+    def __init__(self, cue_repeats=1):
+        self.cue_repeats = cue_repeats
+
+    def records(self, X):
+        selector = CueAugmentedTextSelector(self.cue_repeats)
+        return [dict(Counter(selector.cues(text))) for text in QueryTextSelector().transform(X)]
+
+    def fit(self, X, y=None):
+        self.vectorizer_ = DictVectorizer(sparse=True).fit(self.records(X))
+        return self
+
+    def transform(self, X):
+        return self.vectorizer_.transform(self.records(X))
+
+    def fit_transform(self, X, y=None, **fit_params):
+        rows = list(X)
+        return self.fit(rows, y).transform(rows)
 
 
 class CueAugmentedTextSelector(BaseEstimator, TransformerMixin):
@@ -40,19 +74,18 @@ class CueAugmentedTextSelector(BaseEstimator, TransformerMixin):
         output = []
         for item in X:
             original = str(item.get("question") or "") if isinstance(item, dict) else str(item or "")
-            question = original.lower().strip()
-            words = re.findall(r"[a-z0-9][a-z0-9'_-]*", question)
-            first_word = words[0] if words else "empty"
-            cues = [
-                *([f"__wh_{first_word}"] * 2),
-                f"__len_{min(len(words) // 4, 7)}",
-                f"__of_{min(question.count(' of '), 3)}",
-                f"__comma_{min(question.count(','), 2)}",
-            ]
-            for name, pattern in self.patterns.items():
-                if pattern.search(question):
-                    cues.extend([f"__{name}"] * self.cue_repeats)
-            if len(re.findall(r"\b[A-Z][a-z]+\b", original)) >= 2:
-                cues.extend(["__multi_cap"] * self.cue_repeats)
-            output.append(f"{question} {' '.join(cues)}")
+            output.append(f"{original.lower().strip()} {' '.join(self.cues(original))}")
         return output
+
+    def cues(self, original):
+        question = original.lower().strip()
+        words = re.findall(r"[a-z0-9][a-z0-9'_-]*", question)
+        first_word = words[0] if words else 'empty'
+        cues = [*([f'__wh_{first_word}'] * 2), f'__len_{min(len(words) // 4, 7)}',
+                f"__of_{min(question.count(' of '), 3)}", f"__comma_{min(question.count(','), 2)}"]
+        for name, pattern in self.patterns.items():
+            if pattern.search(question):
+                cues.extend([f'__{name}'] * self.cue_repeats)
+        if len(re.findall(r'\b[A-Z][a-z]+\b', original)) >= 2:
+            cues.extend(['__multi_cap'] * self.cue_repeats)
+        return cues

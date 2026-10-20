@@ -356,6 +356,8 @@ class InterleavedRetrieval:
         final_answer = self._clean_final_answer(final_answer)
         verifier_used = False
         verifier_error = None
+        token_accounting_complete = True
+        known_token_cost = None
         if enable_answer_verifier is None:
             enable_answer_verifier = os.getenv("IRCOT_ENABLE_ANSWER_VERIFIER", "0").strip().lower() not in {"0", "false", "no"}
         verifier_policy = os.getenv("IRCOT_ANSWER_VERIFIER_POLICY", "fallback").strip().lower()
@@ -389,10 +391,16 @@ class InterleavedRetrieval:
                 total_tokens += verify_tokens
                 if verified_answer:
                     final_answer = verified_answer
-            except LLMResponseError:
-                raise
             except Exception as exc:
                 verifier_error = type(exc).__name__
+                received_usage = getattr(exc, 'total_tokens', None)
+                if type(received_usage) is int and received_usage > 0:
+                    total_tokens += received_usage
+                else:
+                    # Preserve the candidate even when the verifier's charge is unknown.
+                    known_token_cost = total_tokens
+                    total_tokens = None
+                    token_accounting_complete = False
         return _pack(
             final_context,
             final_answer.strip(),
@@ -402,6 +410,8 @@ class InterleavedRetrieval:
                 "ircot_final_fallback": final_fallback_used,
                 "ircot_answer_verifier": verifier_used,
                 "ircot_verifier_error": verifier_error,
+                "token_accounting_complete": token_accounting_complete,
+                "known_token_cost": known_token_cost if known_token_cost is not None else total_tokens,
                 "ircot_search_calls": steps // 2,
                 "ircot_aggregate_items": len(all_docs),
                 "ircot_step_rerank": rerank_steps,

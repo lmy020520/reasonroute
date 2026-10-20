@@ -1312,12 +1312,13 @@ class DeepSeekRAGTool:
         fact_context_k = int(os.getenv("FACT_CONTEXT_TOP_K", str(6 if token_saver else direct_context_k)))
         explanation_context_k = int(os.getenv("EXPLANATION_CONTEXT_TOP_K", str(7 if token_saver else direct_context_k)))
         
-        base_semantic = self.semantic_tool.semantic_search(query, top_k=base_semantic_k)
+        base_semantic = [] if category == 'fact' else self.semantic_tool.semantic_search(query, top_k=base_semantic_k)
         
         if category == "fact":
             r_bm25 = self.bm25_tool.keyword_search(query, top_k=branch_pool_k)
             retrieval_steps += 1
-            candidate_pool = self._dedupe_keep_order(base_semantic + r_bm25)
+            # keyword_search already fuses the BM25 and Dense rankings with RRF.
+            candidate_pool = self._dedupe_keep_order(r_bm25)
             fact_top_k = fact_context_k
             if _env_flag("FACT_DYNAMIC_BUDGET"):
                 if self._is_simple_fact_query(query):

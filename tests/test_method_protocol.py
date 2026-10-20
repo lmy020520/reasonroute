@@ -11,7 +11,7 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from reasonroute.datasets import disjoint
-from reasonroute.runtime import MethodRuntime, branch_environment
+from reasonroute.runtime import MethodRuntime, branch_environment, IMPLEMENTATION_REVISION
 from tools.train_method_models import fit_classifier, gate_targets, choose_threshold
 from tools.train_method_models import main as train_models
 from reasonroute.datasets import load_artifact
@@ -97,7 +97,7 @@ class ProtocolTests(unittest.TestCase):
                 positive = i % 2
                 paired.append({'id': str(i), 'question': f'{"bridge comparison" if positive else "lookup entity"} question {i}',
                                'execution_context': {'config_sha256': 'synthetic-test-only',
-                                                     'implementation_revision': 'independent-v4'},
+                                                     'implementation_revision': IMPLEMENTATION_REVISION},
                                'label_policy_sha256': policy_sha256(), 'candidate_question_type': 'reasoning',
                                'gate_label': positive,
                                'low': {'scores': {'correctness': 1 - positive}, 'token_cost': 100},

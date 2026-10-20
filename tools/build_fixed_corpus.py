@@ -8,6 +8,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from reasonroute.datasets import digest_file, write_new_json
+from reasonroute.preprocessing import document_chunks
 
 
 FORBIDDEN = {'question', 'questions', 'answer', 'answers', 'supporting_facts',
@@ -17,30 +18,17 @@ FORBIDDEN = {'question', 'questions', 'answer', 'answers', 'supporting_facts',
 def make_chunks(rows, size=1000, overlap=150):
     if size <= overlap or overlap < 0:
         raise ValueError('Require chunk_chars > overlap_chars >= 0')
-    seen = set()
     documents = set()
     for row in rows:
         if FORBIDDEN & row.keys():
             raise ValueError('Input must be complete source documents, not QA or annotated evidence rows')
         text, doc_id = str(row.get('text') or '').strip(), str(row.get('doc_id') or '').strip()
-        if not text or not doc_id or doc_id.startswith('iirc_supp__'):
+        if (not text and not row.get('paragraphs')) or not doc_id or doc_id.startswith('iirc_supp__'):
             raise ValueError('Each full document needs text and a stable, non-question-specific doc_id')
         if doc_id in documents:
             raise ValueError('Duplicate source document ID')
         documents.add(doc_id)
-        for i, start in enumerate(range(0, len(text), size - overlap)):
-            content = text[start:start + size]
-            key = hashlib.sha256(content.encode()).hexdigest()
-            if key in seen:
-                continue
-            seen.add(key)
-            yield {'doc_id': doc_id, 'chunk_id': f'{doc_id}__chunk{i:05d}',
-                   'title': row.get('title', ''), 'content': content,
-                   'links': row.get('links', []), 'corpus': 'full_document_snapshot',
-                   'metadata': {'chunk_index': i, 'char_start': start,
-                                'char_count': len(content), 'source_url': row.get('source_url', '')}}
-            if start + size >= len(text):
-                break
+        yield from document_chunks(row, size, overlap)
 
 
 def main():
@@ -65,6 +53,7 @@ def main():
         'source_sha256': digest_file(args.documents), 'source_name': args.documents.name,
         'chunk_chars': args.chunk_chars, 'overlap_chars': args.overlap_chars,
         'chunks': len(chunks), 'question_conditioned_selection': False,
+        'location_schema': 'paragraph-sentence-character-v1',
         'scope': 'Builder does not inspect questions. User must supply an independently obtained complete document snapshot.'})
     print(f'Saved {len(chunks)} fixed-corpus chunks; rebuild embeddings and KG for this snapshot')
 

@@ -14,7 +14,8 @@ from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
 
-from reasonroute.classification import build_model, metrics
+from reasonroute.classification import build_model, metrics, FEATURE_SCHEMA
+from reasonroute.runtime import IMPLEMENTATION_REVISION
 from reasonroute.datasets import disjoint, digest_file, digest_json, read_rows, write_new_json, question_fingerprints
 from reasonroute.annotation import verify_labels, policy_sha256
 
@@ -115,10 +116,12 @@ def main():
         verify_labels(test)
         model, report = fit_classifier(train, test)
         artifact = {'kind': 'query_classifier', 'model': model, 'train_n': len(train),
+                    'feature_schema': FEATURE_SCHEMA,
                     'protocol_version': 'independent-v4', 'annotation': annotation,
                     'training_question_sha256': question_fingerprints(train),
                     'train_sha256': digest_file(args.train), 'test_sha256': digest_file(args.test)}
         report.update({'protocol': '1000 train-only OOF, full training fit, independent 1490 prediction',
+                       'feature_schema': FEATURE_SCHEMA,
                        'method': 'LinearSVC', 'annotation': annotation,
                        'training_evaluation_separated': True,
                        'train_n': len(train), 'test_n': len(test), 'train_sha256': artifact['train_sha256'],
@@ -133,8 +136,8 @@ def main():
         for excluded in exclusions:
             disjoint(train, excluded)
         labels = gate_targets(train)
-        if any(row.get('execution_context', {}).get('implementation_revision') != 'independent-v4' for row in train):
-            raise ValueError('Gate pairs must come from the independent-v4 annotation runner')
+        if any(row.get('execution_context', {}).get('implementation_revision') != IMPLEMENTATION_REVISION for row in train):
+            raise ValueError('Gate pairs must come from the current annotation runner')
         if any(row.get('label_policy_sha256') != policy_sha256() or row.get('candidate_question_type') != 'reasoning' for row in train):
             raise ValueError('Gate pairs must record their shared candidate annotation policy')
         contexts = {digest_json(row.get('execution_context')) for row in train}

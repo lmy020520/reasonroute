@@ -1,9 +1,10 @@
 {
-  "profile_id": "reasonroute-independent-v4",
+  "profile_id": "reasonroute-paper-method-v5",
   "status": "new implementation; historical metrics do not apply",
   "route_source": "frozen_classifier_predictions_only",
   "data_protocol": "independent-v4",
   "common": {
+    "RERANK_FAIL_HARD": "1",
     "IRCOT_MAX_STEPS": "3",
     "IRCOT_STEP_TOP_K": "3",
     "IRCOT_STEP_MAX_TOKENS": "180",

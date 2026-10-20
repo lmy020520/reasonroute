@@ -27,13 +27,14 @@ def judge(question, answer, output, strict=False):
 
 
 def record_branch(output, scores):
-    if output.get('metrics', {}).get('ircot_verifier_error'):
-        raise ValueError('Verifier failed; do not record this sample as having complete token accounting')
     token = output.get('metrics', {}).get('token_cost')
-    if type(token) is not int or token <= 0:
+    complete = output.get('metrics', {}).get('token_accounting_complete', True)
+    if complete and (type(token) is not int or token <= 0):
         raise ValueError('Completed generation requires positive integer Token usage')
+    if not complete and token is not None:
+        raise ValueError('Unknown total Token usage must be null, never a partial total or zero')
     return {'scores': scores, 'prediction': output['final_answer'],
-            'token_cost': output['metrics']['token_cost'], 'metrics': output['metrics']}
+            'token_cost': token, 'token_accounting_complete': complete, 'metrics': output['metrics']}
 
 
 def summary(rows):
@@ -43,11 +44,14 @@ def summary(rows):
         if not subset:
             continue
         acc = sum(r['scores']['correctness'] for r in subset) / len(subset) * 100
-        token = sum(r['token_cost'] for r in subset) / len(subset)
+        known = [r['token_cost'] for r in subset if r['token_cost'] is not None]
+        token = sum(known) / len(subset) if len(known) == len(subset) else None
         table[kind] = {'N': len(subset), 'ACC': acc,
                        'Recall': sum(r['scores']['context_recall'] for r in subset) / len(subset) * 100,
                        'Faith': sum(r['scores']['faithfulness'] for r in subset) / len(subset) * 100,
-                       'Token': token, 'ACC_per_1KToken': acc / token * 1000 if token else None}
+                       'Token': token, 'ACC_per_1KToken': acc / token * 1000 if token else None,
+                       'Token_accounting_complete': len(known) == len(subset),
+                       'Token_known_samples': len(known)}
     return table
 
 

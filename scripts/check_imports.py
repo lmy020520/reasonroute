@@ -16,6 +16,7 @@ CLI = ('scripts.run_reasonroute', 'tools.train_method_models', 'tools.build_meth
        'tools.prepare_method_data', 'tools.build_fixed_corpus', 'tools.augment_explanation_from_iirc',
        'tools.reclassify_public_eval', 'tools.build_classifier_training_dataset',
        'tools.build_compact_gate_training_dataset')
+CLI = (*CLI, 'tools.build_public_evidence')
 
 IMPORT_GUARD = '''
 import importlib, importlib.abc, json, socket, sys

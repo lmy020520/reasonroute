@@ -153,9 +153,11 @@ class TokenUsageTests(unittest.TestCase):
             read_llm_reply(response)
 
     def test_failed_verifier_is_not_reported_as_complete_cost(self):
-        with self.assertRaises(ValueError):
-            record_branch({'final_answer': 'candidate', 'metrics': {
-                'token_cost': 50, 'ircot_verifier_error': 'Timeout'}}, {})
+        record = record_branch({'final_answer': 'candidate', 'metrics': {
+            'token_cost': None, 'token_accounting_complete': False,
+            'known_token_cost': 50, 'ircot_verifier_error': 'Timeout'}}, {})
+        self.assertEqual(record['prediction'], 'candidate')
+        self.assertIsNone(record['token_cost'])
 
     def test_optional_helpers_do_not_turn_network_failures_into_zero_usage(self):
         engine = self.engine()
@@ -191,14 +193,17 @@ class TokenUsageTests(unittest.TestCase):
                 with self.subTest(call=call), self.assertRaises(TokenUsageError):
                     call()
 
-    def test_verifier_missing_usage_aborts_sample_instead_of_underreporting(self):
+    def test_verifier_missing_usage_preserves_answer_without_inventing_cost(self):
         hybrid = SimpleNamespace(keyword_search=lambda *args, **kwargs: ['evidence'])
         actions = [('SEARCH("next")', 10)] * 3 + [TokenUsageError('missing usage')]
         with branch_environment({'IRCOT_ANSWER_VERIFIER_POLICY': 'fallback'}), \
              patch.object(retrieval, 'call_deepseek', side_effect=actions), \
              patch.object(retrieval, 'generate_answer', return_value=('candidate', 20)):
-            with self.assertRaises(TokenUsageError):
-                retrieval.InterleavedRetrieval(hybrid, 3).run('question', True)
+            result = retrieval.InterleavedRetrieval(hybrid, 3).run('question', True)
+        self.assertEqual(result['final_answer'], 'candidate')
+        self.assertIsNone(result['metrics']['token_cost'])
+        self.assertEqual(result['metrics']['known_token_cost'], 50)
+        self.assertFalse(result['metrics']['token_accounting_complete'])
 
     def test_valid_usage_passes_through_both_generation_clients(self):
         with patch('requests.post', return_value=Response(reply(tokens=23))), \

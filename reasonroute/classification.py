@@ -4,7 +4,8 @@ from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import LinearSVC
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
-from tools.query_classifier_features_v3 import CueAugmentedTextSelector as PersistableCueAugmentedTextSelector
+from tools.query_classifier_features_v3 import QueryTextSelector, QueryStructureFeatures
+FEATURE_SCHEMA = 'paper-three-block-v1'
 LABELS = ["fact", "explanation", "reasoning"]
 
 
@@ -16,7 +17,7 @@ def build_model(
     min_df: int,
     c_value: float,
 ) -> Pipeline:
-    selector = PersistableCueAugmentedTextSelector(cue_repeats=cue_repeats)
+    selector = QueryTextSelector()
     features = FeatureUnion(
         [
             (
@@ -53,8 +54,9 @@ def build_model(
                     ]
                 ),
             ),
+            ('structure', QueryStructureFeatures(cue_repeats=cue_repeats)),
         ],
-        transformer_weights={"word": 1.25, "char": 0.75},
+        transformer_weights={"word": 1.25, "char": 0.75, "structure": 1.0},
     )
     return Pipeline(
         [
@@ -66,7 +68,6 @@ def build_model(
                     class_weight="balanced",
                     loss="hinge",
                     max_iter=15000,
-                    random_state=42,
                 ),
             ),
         ]
