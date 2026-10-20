@@ -37,3 +37,7 @@ cache/
 logs/
 paper/
 runs/
+*.md
+*.markdown
+*.mdown
+docs/
